@@ -1,16 +1,23 @@
-package com.tekwill.learning.trivia.game.domain;
+package com.learning.game.domain;
 
 
-import com.tekwill.learning.trivia.game.domain.exceptions.EmptyAnswerTextException;
+import com.learning.game.domain.exceptions.EmptyAnswerTextException;
 
 import java.util.Objects;
 
 public class Answer {
+
+    private Long id;
     private String text;
     private boolean isCorrect;
     private String letter;
     private Question question;
 
+
+    public Answer(Long id, String text, boolean isCorrect, String letter) {
+        this(text, isCorrect, letter);
+        this.id = id;
+    }
 
     public Answer(String text, boolean isCorrect, String letter) {
         if (text.isEmpty())
@@ -44,6 +51,14 @@ public class Answer {
         this.letter = letter;
     }
 
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
     public Question getQuestion() {
         return question;
     }
@@ -58,6 +73,7 @@ public class Answer {
         if (o == null || getClass() != o.getClass()) return false;
         Answer answer = (Answer) o;
         return isCorrect == answer.isCorrect &&
+                Objects.equals(id, answer.id) &&
                 Objects.equals(text, answer.text) &&
                 Objects.equals(letter, answer.letter) &&
                 Objects.equals(question, answer.question);
@@ -65,7 +81,7 @@ public class Answer {
 
     @Override
     public int hashCode() {
-        return Objects.hash(text, isCorrect, letter, question);
+        return Objects.hash(id, text, isCorrect, letter, question);
     }
 
     @Override
