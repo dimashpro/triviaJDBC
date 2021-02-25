@@ -1,4 +1,4 @@
-package com.tekwill.learning.trivia.game.domain;
+package com.learning.game.domain;
 
 public class HelpAnswer {
     private String text;
