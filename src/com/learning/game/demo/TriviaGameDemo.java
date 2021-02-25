@@ -1,7 +1,7 @@
-package com.tekwill.learning.trivia.game.demo;
+package com.learning.game.demo;
 
-import com.tekwill.learning.trivia.game.engine.TriviaAdmin;
-import com.tekwill.learning.trivia.game.engine.TriviaGame;
+import com.learning.game.engine.TriviaAdmin;
+import com.learning.game.engine.TriviaGame;
 
 import java.util.Scanner;
 
