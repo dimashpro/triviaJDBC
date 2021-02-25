@@ -1,84 +1,137 @@
-package com.tekwill.learning.trivia.game.repository;
+package com.learning.game.repository;
 
-import com.tekwill.learning.trivia.game.domain.Answer;
-import com.tekwill.learning.trivia.game.domain.Question;
+import com.learning.game.domain.Answer;
+import com.learning.game.domain.Question;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class QuestionRepositoryImpl implements QuestionRepository {
-    public List<Question> questions = new ArrayList<>(Arrays.asList(
-            new Question(100, 1, "Which of these cities is the capital of the Republic of Moldova?",
-                    Arrays.asList(new Answer("Rome", false, "A"), new Answer("Vienna", false, "B"),
-                            new Answer("Chisinau", true, "C"), new Answer("Monaco", false, "D"))),
-
-            new Question(100, 1, "Who composed the masterpiece \"Luceafarul\"?",
-                    Arrays.asList(new Answer("Shakespeare", false, "A"), new Answer("Eminescu", true, "B"),
-                            new Answer("Pushkin", false, "C"), new Answer("Alighieri", false, "D"))),
-
-            new Question(100, 1, "What is the most dangerous breed of dog?",
-                    Arrays.asList(new Answer("chi hua hua", false, "A"), new Answer("doberman", false, "B"),
-                            new Answer("pit bull", true, "C"), new Answer("vasea bolea", false, "D"))),
-
-            new Question(250, 2, "What is the most useful platform to study the Java programming language?",
-                    Arrays.asList(new Answer("Facebook", false, "A"), new Answer("Instagram", false, "B"),
-                            new Answer("Tik Tok", false, "C"), new Answer("docs.oracle.com/en/java/", true, "D"))),
-
-            new Question(250, 2, "Which of these is NOT an non-access modifier?",
-                    Arrays.asList(new Answer("abstract", false, "A"), new Answer("private", true, "B"),
-                            new Answer("static", false, "C"), new Answer("final", false, "D"))),
-
-            new Question(250, 2, "Which of these is NOT a feature and component of Java?",
-                    Arrays.asList(new Answer("encapsulation", false, "A"), new Answer("platform independence", false, "B"),
-                            new Answer("drinking beer", true, "C"), new Answer("object orientation", false, "D"))),
-
-            new Question(350, 3, "Where are stored object reference variables?",
-                    Arrays.asList(new Answer("In Stack memory", false, "A"), new Answer("In brain", false, "B"),
-                            new Answer("In Heap memory", true, "C"), new Answer("On the roof", false, "D"))),
-
-            new Question(350, 3, "Who is awesome??? :)",
-                    Arrays.asList(new Answer("Java", true, "A"), new Answer("Python", false, "B"),
-                            new Answer("C#", false, "C"), new Answer("JavaScript", false, "D"))),
-
-            new Question(350, 3, "Which of these data types have smallest size?",
-                    Arrays.asList(new Answer("byte", true, "A"), new Answer("short", false, "B"),
-                            new Answer("int", false, "C"), new Answer("long", false, "D")))));
-
+    private final String url = "jdbc:postgresql://localhost:5432/";
+    private final String database = "trivia-db";
+    private final String userName = "postgres";
+    private final String password = "123456";
 
     @Override
     public List<Question> findQuestionsByLevel(int level) {
-        List<Question> result = new ArrayList<>();
-        for (int i = 0; i < questions.size(); i++) {
-            if (questions.get(i).getLevel() == level)
-                result.add(questions.get(i));
-        }
-        return result;
+        List<Question> questions = new ArrayList<>();
+        try (Connection c = DriverManager.getConnection(url + database, userName, password);
+             PreparedStatement ps = c.prepareStatement("SELECT * FROM QUESTION Q  WHERE Q.LEVEL = ?");
+             PreparedStatement ps2 = c.prepareStatement("SELECT * FROM ANSWER A  WHERE A.QUESTION_ID = ?")) {
 
-//        try (Connection connection = DriverManager.getConnection(
-//                "jdbc:postgresql://localhost:5432/trivia-db?user=postgres&password=123456")) {
-//            System.out.println("Using long url obtained " + connection.getClientInfo());
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//        }
-//        return result;
+            ps.setInt(1, level);
+
+            //retrieve question
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    Question question = new Question(r.getLong("id"), r.getInt("score"),
+                            r.getInt("level"), r.getString("text"));
+                    questions.add(question);
+                }
+            }
+
+            //retrieve answers
+            for (Question q : questions) {
+                ps2.setLong(1, q.getId());
+                try (ResultSet r = ps2.executeQuery()) {
+                    while (r.next()) {
+                        Answer answer = new Answer(r.getLong("id"), r.getString("text"),
+                                r.getBoolean("is_correct"), r.getString("letter"));
+                        q.addAnswer(answer);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return questions;
     }
 
     @Override
     public boolean save(Question question) {
-        return questions.add(question);
+        try (Connection c = DriverManager.getConnection(url + database, userName, password);
+             PreparedStatement ps = c.prepareStatement("INSERT INTO QUESTION(level, score, text) VALUES (?, ?, ?)",
+                     Statement.RETURN_GENERATED_KEYS);
+             PreparedStatement ps2 = c.prepareStatement(
+                     "INSERT INTO ANSWER(is_correct, letter, text, question_id) VALUES (?, ?, ?, ?)")) {
+            //insert question
+
+            ps.setInt(1, question.getLevel());
+            ps.setInt(2, question.getScore());
+            ps.setString(3, question.getText());
+            ps.executeUpdate();
+
+            try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                if (generatedKeys.next())
+                    question.setId(generatedKeys.getLong(1));
+            }
+            //insert answers
+            for (Answer a : question.getAnswers()) {
+                ps2.setBoolean(1, a.isCorrect());
+                ps2.setString(2, a.getLetter());
+                ps2.setString(3, a.getText());
+                ps2.setLong(4, question.getId());
+                ps2.executeUpdate();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
     }
 
     @Override
     public boolean delete(Question question) {
-        return questions.remove(question);
+        try (Connection c = DriverManager.getConnection(url + database, userName, password);
+             PreparedStatement ps = c.prepareStatement("DELETE FROM ANSWER WHERE QUESTION_ID = ?");
+             PreparedStatement ps2 = c.prepareStatement("DELETE FROM QUESTION WHERE ID = ?")) {
+
+            //delete answers
+            ps.setLong(1, question.getId());
+            ps.executeUpdate();
+
+            //delete question
+            ps2.setLong(1, question.getId());
+            ps2.executeUpdate();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
     }
 
     @Override
     public List<Question> findAll() {
+        List<Question> questions = new ArrayList<>();
+        try (Connection c = DriverManager.getConnection(url + database, userName, password);
+             PreparedStatement ps = c.prepareStatement("SELECT * FROM QUESTION Q");
+             PreparedStatement ps2 = c.prepareStatement("SELECT * FROM ANSWER A  WHERE A.QUESTION_ID = ?")) {
+            //retrieve question
+
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    Question question = new Question(r.getLong("id"), r.getInt("score"),
+                            r.getInt("level"), r.getString("text"));
+                    questions.add(question);
+                }
+            }
+
+            //retrieve answers
+            for (Question q : questions) {
+                ps2.setLong(1, q.getId());
+                try (ResultSet r = ps2.executeQuery()) {
+                    while (r.next()) {
+                        Answer answer = new Answer(r.getLong("id"), r.getString("text"),
+                                r.getBoolean("is_correct"), r.getString("letter"));
+                        q.addAnswer(answer);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return questions;
     }
 }
